@@ -1,0 +1,73 @@
+🍄 How do you teach an LLM to extract memories WITHOUT making it hallucinate fake ones?
+
+MemU uses a modular prompt architecture with 5 memory types. Here's the recipe.
+
+---
+
+👞 Non technical TLDR
+
+- When you meet someone, you naturally categorize what you learn: "she's a designer" (profile), "she went to Japan last month" (event), "she knows Python" (knowledge)
+- MemU does the same thing with LLM prompts - specialized extractors for each type of memory
+- The output is structured XML, not free text = no "I think the user might possibly like..." nonsense
+
+---
+
+🔬 Technical TLDR
+
+- **5 Memory Types** with dedicated prompt modules:
+  - `profile` → stable traits, demographics, preferences
+  - `event` → time-bound experiences ("last weekend", "in 2023")
+  - `knowledge` → factual info the user knows or learned
+  - `behavior` → patterns, habits, routines
+  - `skill` → demonstrated capabilities, expertise levels
+
+- **7-Block Prompt Architecture**:
+  1. Task definition (what we're extracting)
+  2. Input format spec
+  3. Extraction guidelines (DO extract X, DON'T infer Y)
+  4. Output XML schema
+  5. Example input/output pairs
+  6. Edge case handling
+  7. Quality checklist
+
+- **XML Output Format** (the real MVP):
+```xml
+<memory_items>
+  <item type="profile">User is 30 years old, works as PM</item>
+  <item type="event">User attended AI conference in March 2024</item>
+</memory_items>
+```
+
+- Parsing is dead simple: regex + ElementTree. No JSON hallucination issues.
+
+---
+
+🛠 Why 5 types and not 50?
+
+- Too few = everything is "knowledge", no semantic distinction
+- Too many = LLM gets confused, extraction quality tanks
+- 5 types = covers 95% of use cases, easy to reason about
+
+---
+
+⚡ The extraction pipeline
+
+```
+Resource → Preprocess (multimodal→text) → Extract (5 parallel LLM calls) → Dedupe → Categorize → Embed → Persist
+```
+
+Each memory type runs in parallel = ~1 LLM call latency, not 5x.
+
+---
+
+🍓 Key insight
+
+The prompts explicitly say: "Extract ONLY what is explicitly stated. Do NOT infer, assume, or extrapolate."
+
+This is crucial. We WANT factual extraction. We DON'T WANT creative writing.
+
+---
+
+How do you handle memory extraction in your agent systems? I got you if you want to dive deeper :)
+
+#ai #llm #promptengineering #agents
