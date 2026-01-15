@@ -1,92 +1,120 @@
-🔬 Real use case where AI agent frameworks bring real value: observability without touching core code.
+🔬 Real use case where agent frameworks bring value: observability without touching core code.
 
-Workflow interceptors let you hook into EVERY step of your memory pipeline. Here's how to build them.
+You want to know why your memory pipeline is slow. Is it the extraction step? The embedding step? The database write?
 
----
+Without interceptors: add print statements everywhere, redeploy, check logs, remove print statements, redeploy.
+
+With interceptors: register a timing function once, get metrics for every step, no code changes.
 
 👞 Non technical TLDR
 
-- You want to log every step of memory processing? Track how long each step takes? Get alerts when something fails?
-- Build hooks that run before, after, or on error of any workflow step
-- The best part: you don't modify any core code, you just register your functions
+Three hooks you can register:
 
----
+before: runs before each step
+- Start a timer
+- Validate input
+- Check user permissions
+
+after: runs after each step completes
+- Stop the timer, log duration
+- Send metrics to Datadog
+- Notify Slack on completion
+
+on_error: runs when a step fails
+- Log the full error with context
+- Send PagerDuty alert
+- Attempt recovery
+
+Example: memory pipeline has 6 steps (ingest, preprocess, extract, categorize, embed, persist). Your timing interceptor automatically logs duration for all 6 without modifying any of them.
 
 🔬 Technical TLDR
 
-- 3 types of interceptors:
-  - before → runs before each workflow step (validation, auth, timing start)
-  - after → runs after step completes (logging, metrics, notifications)
-  - on_error → runs when step fails (alerts, recovery, cleanup)
+Registration:
 
-- Registration should be dead simple:
+def on_step_start(ctx, state):
+    state["timer_start"] = time.time()
+    print(f"Starting {ctx.step_id}")
 
-handle = service.intercept_before_workflow_step(
-    fn=my_validator,
-    name="scope-check"
-)
+def on_step_end(ctx, state):
+    duration = time.time() - state["timer_start"]
+    print(f"{ctx.step_id} took {duration:.2f}s")
 
-- Your step context should give you:
-  - workflow_name: "memorize", "retrieve_rag", "retrieve_llm"
-  - step_id: "extract_items", "persist_index", etc.
-  - step_role: "ingest", "extract", "persist"
-  - step_context: step-specific metadata
+service.intercept_before(on_step_start)
+service.intercept_after(on_step_end)
 
-- Support both sync and async handlers, automatically awaited
+Now run a memorize operation:
 
----
+Starting ingest_resource
+ingest_resource took 0.12s
+Starting preprocess_multimodal
+preprocess_multimodal took 0.45s
+Starting extract_items
+extract_items took 2.31s
+Starting categorize_items
+categorize_items took 0.89s
+Starting embed_items
+embed_items took 0.34s
+Starting persist_index
+persist_index took 0.08s
 
-🛠 Practical examples
+You immediately see: extraction is the bottleneck at 2.31s.
 
-1. Duration tracking:
-
-def on_start(ctx, state):
-    state["_timer"] = time.time()
-
-def on_end(ctx, state):
-    duration = time.time() - state["_timer"]
-    print(f"{ctx.step_id}: {duration:.2f}s")
-
-2. OpenTelemetry tracing:
+🛠 OpenTelemetry example
 
 def trace_start(ctx, state):
-    span = tracer.start_span(f"memory.{ctx.step_id}")
-    state["_span"] = span
+    span = tracer.start_span(
+        f"memory.{ctx.workflow_name}.{ctx.step_id}"
+    )
+    span.set_attribute("step_role", ctx.step_role)
+    state["otel_span"] = span
 
 def trace_end(ctx, state):
-    state["_span"].end()
+    state["otel_span"].end()
 
-3. Validation gate:
+def trace_error(ctx, state, error):
+    state["otel_span"].set_status(Status(StatusCode.ERROR))
+    state["otel_span"].record_exception(error)
+    state["otel_span"].end()
 
-def validate_scope(ctx, state):
+service.intercept_before(trace_start)
+service.intercept_after(trace_end)
+service.intercept_on_error(trace_error)
+
+Now every step shows up in Jaeger/Zipkin with proper parent-child relationships.
+
+🥊 Validation gate example
+
+def require_user_id(ctx, state):
     if ctx.step_id == "persist_index":
         if not state.get("user_id"):
-            raise ValueError("user_id required")
+            raise ValueError(
+                f"user_id required for {ctx.step_id}"
+            )
 
----
+service.intercept_before(require_user_id)
 
-🥊 Strict vs Non-Strict Mode
+Now any attempt to persist without a user_id fails immediately with a clear error, not a cryptic database constraint violation 3 layers deep.
 
-- Non-strict (default): interceptor errors are logged, workflow continues
-- Strict: interceptor errors propagate, workflow stops
+⚡ Strict vs non-strict mode
 
-Production = non-strict (observability shouldn't break the pipeline)
-Testing = strict (catch bugs early)
+Non-strict (production): interceptor crashes are logged, pipeline continues. Your Datadog integration failing shouldn't break memory storage.
 
----
+Strict (testing): interceptor crashes stop the pipeline. You want to catch bugs in your observability code before production.
 
-🍓 Key insight
+🍓 Why after-interceptors run in reverse
 
-After-interceptors should run in REVERSE order (LIFO). Why?
+You register A, then B.
 
-Think of it like try/finally blocks. If you start a timer in before, you want to stop it in after - even if other interceptors were registered after yours.
+before runs: A first, then B
+after runs: B first, then A
 
-register(A) → register(B) → before(A) → before(B) → step → after(B) → after(A)
+Why? If A starts a database transaction and B starts a timer inside that transaction, you want the timer to stop before the transaction commits. LIFO order = clean unwinding.
 
-Clean stack unwinding.
+register(db_transaction) → register(timer)
+→ before: start_transaction → start_timer
+→ step executes
+→ after: stop_timer → commit_transaction
 
----
-
-This pattern is becoming standard in agent frameworks. Are you using interceptors/hooks in your pipelines?
+Are you using interceptors in your pipelines? Share your thoughts :)
 
 #ai #llm #observability #agents
