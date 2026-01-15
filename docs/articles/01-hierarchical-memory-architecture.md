@@ -6,9 +6,9 @@ MemU's answer: a 3-layer hierarchical memory system. Let me break it down with n
 
 👞 Non technical TLDR
 
-- Think of it like organizing your closet: you have the raw stuff (clothes), individual items (this blue shirt), and categories (work clothes, casual, etc.)
-- AI agents need the same structure: raw conversations → extracted facts → organized summaries
-- This lets the agent answer "what does the user like?" without scanning every conversation ever
+- Most AI agents just dump everything into a vector database. Query = scan everything. Slow and noisy.
+- MemU organizes memories in 3 layers: raw conversations → extracted facts → organized summaries
+- This lets the agent answer "what does the user like?" by checking the summary first, not scanning every conversation ever
 
 ---
 

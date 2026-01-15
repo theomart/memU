@@ -6,9 +6,9 @@ MemU's workflow interceptors let you hook into EVERY step of the memory pipeline
 
 👞 Non technical TLDR
 
-- Think of it like airport security checkpoints: you can add checks before boarding (validation), after landing (logging), or when something goes wrong (alerts)
-- MemU lets you add these "checkpoints" to every step of memory processing
-- The best part: you don't modify any MemU code, you just register your hooks
+- You want to log every step of memory processing? Track how long each step takes? Get alerts when something fails?
+- MemU lets you register hooks that run before, after, or on error of any workflow step
+- The best part: you don't modify any MemU code, you just register your functions
 
 ---
 
