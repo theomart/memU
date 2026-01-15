@@ -1,6 +1,6 @@
 🦎 AI memory storage cheat sheet for practical deployments.
 
-MemU supports 3 backends: InMemory, SQLite, PostgreSQL. Here's when to use each.
+Here are 3 backend options for your agent memory: InMemory, SQLite, PostgreSQL. When to use each.
 
 ---
 
@@ -14,20 +14,33 @@ MemU supports 3 backends: InMemory, SQLite, PostgreSQL. Here's when to use each.
 
 🔬 Technical TLDR
 
-- **All backends implement the same `Database` protocol** → swap with one config change
+- All backends should implement the same Database protocol → swap with one config change
 - Protocol-based design = duck typing, no inheritance, easy mocking for tests
 
 ---
 
-📊 Backend comparison:
+📊 Backend comparison
 
-| | InMemory | SQLite | PostgreSQL |
-|---|---|---|---|
-| Persistence | ❌ | ✅ File | ✅ Server |
-| Setup | Zero | DSN string | Full server |
-| Vector search | NumPy cosine | Brute-force | pgvector HNSW |
-| 10k vector search | ~50ms | ~100ms | ~5ms |
-| Concurrency | Single process | Single writer | Full ACID |
+InMemory:
+- Persistence: none
+- Setup: zero
+- Vector search: NumPy cosine
+- 10k vector search: ~50ms
+- Concurrency: single process
+
+SQLite:
+- Persistence: file
+- Setup: DSN string
+- Vector search: brute-force
+- 10k vector search: ~100ms
+- Concurrency: single writer
+
+PostgreSQL:
+- Persistence: server
+- Setup: full server
+- Vector search: pgvector HNSW
+- 10k vector search: ~5ms
+- Concurrency: full ACID
 
 ---
 
@@ -39,7 +52,7 @@ Without pgvector:
 - O(n) for every search
 
 With pgvector:
-- Native `vector(1536)` column type
+- Native vector(1536) column type
 - HNSW approximate nearest neighbor index
 - O(log n) search, SIMD acceleration
 
@@ -49,48 +62,42 @@ To put that in perspective: 10k vectors goes from ~100ms to ~5ms. At 1M vectors,
 
 🛠 Configuration examples
 
-**Development:**
-```python
+Development:
+
 store = InMemoryStore()
-```
 
-**Lightweight deployment:**
-```python
+Lightweight deployment:
+
 store = SQLiteStore(
-    dsn="sqlite:///./data/memu.sqlite"
+    dsn="sqlite:///./data/memory.sqlite"
 )
-```
 
-**Production:**
-```python
+Production:
+
 store = PostgresStore(
-    dsn="postgresql://user:pass@db:5432/memu",
-    vector_provider="pgvector",  # ← the magic flag
+    dsn="postgresql://user:pass@db:5432/memory",
+    vector_provider="pgvector",
     ddl_mode="create"
 )
-```
 
 ---
 
 👨‍🍳 Recipe for multi-tenant setup
 
-MemU supports **scope models** for tenant isolation:
+Use scope models for tenant isolation:
 
-```python
 class MyScope(BaseModel):
     user_id: str
     org_id: str | None = None
 
 store = PostgresStore(
     dsn="...",
-    scope_model=MyScope  # ← all tables get user_id, org_id columns
+    scope_model=MyScope
 )
 
-# Query with automatic filtering
 items = store.memory_item_repo.list_items(
     where={"user_id": "user_123"}
 )
-```
 
 No manual tenant filtering. No data leaks. Clean.
 
@@ -98,15 +105,7 @@ No manual tenant filtering. No data leaks. Clean.
 
 🍓 Key insight
 
-The `Database` protocol means you can start with InMemory for prototyping, graduate to SQLite for MVP, then PostgreSQL for scale - WITHOUT changing application code.
-
-```python
-@runtime_checkable
-class Database(Protocol):
-    resource_repo: ResourceRepo
-    memory_item_repo: MemoryItemRepo
-    # ... same interface everywhere
-```
+A clean Database protocol means you can start with InMemory for prototyping, graduate to SQLite for MVP, then PostgreSQL for scale - WITHOUT changing application code.
 
 Swap the store, keep the logic.
 
