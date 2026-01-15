@@ -2,93 +2,48 @@
 
 User asks: "What did she say about the deadline?"
 
-RAG approach: embed query, search vectors, return top 5 chunks mentioning "deadline" or "she".
+RAG approach: embed query, search vectors, return top 5 chunks mentioning "deadline".
 
-Problem: who is "she"? The system has no idea. Returns random deadline mentions.
+Problem: who is "she"? Returns random deadline mentions from random people.
 
-LLM approach: look at conversation history, understand "she" = Sarah from the previous message, search for "Sarah" + "deadline", rank results by relevance.
+LLM approach: look at conversation history, understand "she" = Sarah, rewrite query to "What did Sarah say about the project deadline?", search, rank results.
 
-Problem: takes 3 seconds instead of 50ms.
+Problem: 10-100x slower.
 
 Solution: build both, let the query decide.
 
 👞 Non technical TLDR
 
 Simple queries use RAG:
-- "What's the user's email?" → vector search → 50ms
-- "When is the meeting?" → vector search → 50ms
+- "What's the user's email?" → vector search → fast
+- "When is the meeting?" → vector search → fast
 
 Complex queries use LLM:
-- "What did she say about that?" → needs context resolution → 2s
-- "Summarize our project discussions" → needs semantic ranking → 3s
+- "What did she say about that?" → needs pronoun resolution → slower but accurate
+- "Summarize our discussions" → needs semantic ranking → slower but accurate
 
-The system can auto-detect which to use based on query complexity.
+A pre-retrieval decision step auto-detects which path to take.
 
 🔬 Technical TLDR
 
-RAG path:
-Query: "user's favorite color"
-→ Embed query
-→ Cosine similarity against memory embeddings
-→ Top 5 results: ["User mentioned liking blue", "User bought a blue car", ...]
-→ 50ms total
+Both methods search the same 3-tier hierarchy: Categories → Items → Resources.
 
-LLM path:
-Query: "What did she recommend for the API issue?"
-→ LLM resolves "she" to "Sarah" using conversation history
-→ Rewritten query: "What did Sarah recommend for the API authentication issue?"
-→ Search with rewritten query
-→ LLM ranks results by relevance to the actual question
-→ 2-3s total
-
-🥊 The sufficiency check
-
-This is where it gets interesting. After searching each layer, ask: "Do we have enough?"
+The key innovation: sufficiency checking after each tier.
 
 Query: "What's the user's job?"
-→ Search category summaries
-→ Found: "Work: User is a senior engineer at Stripe, joined in 2022"
-→ Sufficiency check: YES
-→ Stop. Don't search 10,000 individual memories.
+→ Search categories → Found "Work: Senior engineer at Stripe"
+→ Sufficient? YES → Stop here. Don't search 10,000 items.
 
-Query: "What exactly did the user say about the authentication bug?"
-→ Search category summaries
-→ Found: "Technical issues: User encountered auth bugs"
-→ Sufficiency check: NO, need specifics
-→ Search memory items
-→ Found: "User said OAuth token refresh was failing silently on March 3"
-→ Sufficiency check: YES
-→ Stop. Don't search raw conversations.
+Query: "What exactly did user say about the auth bug?"
+→ Search categories → Found "Technical issues: auth bugs"
+→ Sufficient? NO, need specifics → Search items
+→ Found "OAuth token refresh failing silently on March 3"
+→ Sufficient? YES → Stop. Don't search raw conversations.
 
-Query: "Show me the full conversation about the auth bug"
-→ Goes all the way to Layer 1 (raw resources)
+Pre-retrieval also filters out queries that don't need memory at all. "Hello!" and "What's 2+2?" skip retrieval entirely.
 
-⏳ Real latency numbers
+Latency depends heavily on your embedding model, LLM, and database backend. The sufficiency check is what makes both methods practical by stopping early.
 
-RAG, 10k memories:
-- Category search: 10ms
-- Item search: 30ms
-- Resource search: 50ms
-- Worst case: 100ms
-
-LLM ranking, 10k memories:
-- Category ranking: 1s
-- Item ranking: 2s
-- Resource ranking: 3s
-- Worst case: 6s
-
-But with sufficiency checking, 70% of queries stop at category level.
-
-🛠 Pre-retrieval decision
-
-Before any search, ask: does this query even need memory?
-
-"Hello!" → No retrieval needed
-"What's 2+2?" → No retrieval needed
-"What did I tell you about my project?" → Retrieval needed
-
-This saves ~30% of retrieval calls. The LLM learns to recognize greetings, general knowledge questions, and meta-questions about the system itself.
-
-Which approach do you use in production? Share your thoughts :)
+Which approach do you use in production?
 
 #ai #llm #rag #retrieval

@@ -1,121 +1,39 @@
 🦎 AI memory storage: which database for which stage?
 
-You're building an agent with memory. Day 1, you use a Python dict. Day 30, you have 10,000 users and the dict is gone on every restart.
+Day 1: Python dict. Zero setup. Restart = gone. Fine for prototyping.
 
-Here's the progression that works.
+Day 30: 10,000 users. Dict is gone on every deploy. Need persistence.
+
+Day 100: Vector search is slow. Need native indexing.
+
+Here's the progression.
 
 👞 Non technical TLDR
 
-Stage 1 - Prototyping: Python dict in memory. Zero setup. Restart = data gone. Fine for testing.
+Stage 1 - Prototyping: In-memory dict. Zero config. Data disappears on restart.
 
-Stage 2 - MVP: SQLite file. One line change. Data persists. Handles 1-100 concurrent users.
+Stage 2 - MVP: SQLite file. One config change. Data persists. Single file, portable.
 
-Stage 3 - Production: PostgreSQL + pgvector. Real database. Handles 10,000+ users. Native vector search.
+Stage 3 - Production: PostgreSQL + pgvector. Real database. Concurrent users. Native vector search.
 
-The trick: use the same interface for all three. Swap backends with one config change.
+All three use the same interface. Swap backends by changing config, not code.
 
 🔬 Technical TLDR
 
-InMemory backend:
+The pgvector difference:
 
-store = InMemoryStore()
-store.memory_items["id_123"] = MemoryItem(summary="User likes Python")
+Without it: store vectors as JSON, load into Python, compute cosine similarity, O(n) every query.
 
-Data structure: Python dict
-Vector search: NumPy cosine similarity
-10k vectors: ~50ms
-Persistence: none
+With it: native vector column, HNSW index, query runs in database, O(log n) with SIMD acceleration.
 
-SQLite backend:
+At 1M vectors, the gap is massive. Interactive vs unusable.
 
-store = SQLiteStore(dsn="sqlite:///./data/memories.db")
+Multi-tenant: define a scope model with user_id and org_id fields. Every table gets those columns automatically. Queries filter by scope. No manual WHERE clauses. No data leaks.
 
-Data structure: SQLite tables
-Vector search: brute-force in Python (load vectors, compute similarity)
-10k vectors: ~100ms
-Persistence: single file
+Vector search respects scopes too. Search within one user's memories only.
 
-PostgreSQL + pgvector:
+The architecture is extensible. Community PRs adding Oracle and MSSQL backends use the same pattern.
 
-store = PostgresStore(
-    dsn="postgresql://user:pass@localhost:5432/memories",
-    vector_provider="pgvector"
-)
-
-Data structure: PostgreSQL tables
-Vector search: HNSW index (approximate nearest neighbor)
-10k vectors: ~5ms
-Persistence: full ACID database
-
-⚡ The pgvector difference
-
-Without pgvector:
-- Store 1536-dim vector as JSON array
-- Load all vectors into Python
-- Compute cosine similarity with NumPy
-- O(n) every single query
-
-With pgvector:
-- Store as native vector(1536) column
-- HNSW index built automatically
-- Query runs entirely in database
-- O(log n) with SIMD acceleration
-
-10k vectors: 100ms → 5ms
-100k vectors: 1s → 8ms
-1M vectors: 10s → 15ms
-
-At 1M memories, pgvector is 600x faster.
-
-🛠 Multi-tenant example
-
-You have 1000 users. Each user's memories must be isolated.
-
-class UserScope(BaseModel):
-    user_id: str
-    org_id: str | None = None
-
-store = PostgresStore(
-    dsn="...",
-    scope_model=UserScope
-)
-
-Now every table has user_id and org_id columns automatically.
-
-Query with filtering:
-
-items = store.memory_item_repo.list_items(
-    where={"user_id": "user_456"}
-)
-
-Only returns memories for user_456. No manual WHERE clause. No data leaks.
-
-Vector search with filtering:
-
-results = store.memory_item_repo.vector_search(
-    query_vec=embedding,
-    top_k=10,
-    where={"user_id": "user_456", "org_id": "acme_corp"}
-)
-
-Searches only within that user's memories.
-
-🍓 The interface trick
-
-All three backends implement the same protocol:
-
-store.memory_item_repo.create(item)
-store.memory_item_repo.get(item_id)
-store.memory_item_repo.vector_search(query_vec, top_k)
-store.memory_item_repo.delete(item_id)
-
-Your application code doesn't know which backend it's using. Swap InMemory for Postgres = zero code changes.
-
-config = {"backend": "postgres", "dsn": "..."}  # or "sqlite" or "inmemory"
-store = create_store(config)
-
-Same code runs locally with SQLite, in prod with Postgres.
-
-What's your storage setup for agent memory? Share your thoughts :)
+What's your storage setup for agent memory?
 
 #ai #llm #postgres #pgvector #database

@@ -1,120 +1,44 @@
 🔬 Real use case where agent frameworks bring value: observability without touching core code.
 
-You want to know why your memory pipeline is slow. Is it the extraction step? The embedding step? The database write?
+You want to know why your memory pipeline is slow. Is it extraction? Embedding? Database writes?
 
-Without interceptors: add print statements everywhere, redeploy, check logs, remove print statements, redeploy.
+Without interceptors: add print statements everywhere, redeploy, check logs, remove them, redeploy again.
 
-With interceptors: register a timing function once, get metrics for every step, no code changes.
+With interceptors: register a timing function once, get metrics for every step, zero code changes.
 
 👞 Non technical TLDR
 
-Three hooks you can register:
+Three hooks:
 
-before: runs before each step
-- Start a timer
-- Validate input
-- Check user permissions
+before → runs before each step (start timer, validate input, check permissions)
+after → runs after each step completes (log duration, send metrics, notify)
+on_error → runs when step fails (log error context, send alert, attempt recovery)
 
-after: runs after each step completes
-- Stop the timer, log duration
-- Send metrics to Datadog
-- Notify Slack on completion
+Memory pipeline has 6 steps: ingest, preprocess, extract, categorize, embed, persist.
 
-on_error: runs when a step fails
-- Log the full error with context
-- Send PagerDuty alert
-- Attempt recovery
+Register one timing interceptor. Get duration for all 6 automatically.
 
-Example: memory pipeline has 6 steps (ingest, preprocess, extract, categorize, embed, persist). Your timing interceptor automatically logs duration for all 6 without modifying any of them.
+ingest: 0.12s
+preprocess: 0.45s
+extract: 2.31s ← bottleneck identified
+categorize: 0.89s
+embed: 0.34s
+persist: 0.08s
 
 🔬 Technical TLDR
 
-Registration:
+after and on_error interceptors run in reverse registration order (LIFO).
 
-def on_step_start(ctx, state):
-    state["timer_start"] = time.time()
-    print(f"Starting {ctx.step_id}")
+Why? If interceptor A starts a database transaction and B starts a timer inside it, you want B to stop before A commits. Clean unwinding.
 
-def on_step_end(ctx, state):
-    duration = time.time() - state["timer_start"]
-    print(f"{ctx.step_id} took {duration:.2f}s")
+Two modes:
+- Non-strict (default): interceptor crashes are logged, pipeline continues. Observability shouldn't break storage.
+- Strict: crashes stop everything. Useful for testing.
 
-service.intercept_before(on_step_start)
-service.intercept_after(on_step_end)
+Registration returns a handle for cleanup. Useful for test teardown.
 
-Now run a memorize operation:
+This pattern enables OpenTelemetry tracing, Datadog metrics, validation gates, all without modifying core pipeline code.
 
-Starting ingest_resource
-ingest_resource took 0.12s
-Starting preprocess_multimodal
-preprocess_multimodal took 0.45s
-Starting extract_items
-extract_items took 2.31s
-Starting categorize_items
-categorize_items took 0.89s
-Starting embed_items
-embed_items took 0.34s
-Starting persist_index
-persist_index took 0.08s
-
-You immediately see: extraction is the bottleneck at 2.31s.
-
-🛠 OpenTelemetry example
-
-def trace_start(ctx, state):
-    span = tracer.start_span(
-        f"memory.{ctx.workflow_name}.{ctx.step_id}"
-    )
-    span.set_attribute("step_role", ctx.step_role)
-    state["otel_span"] = span
-
-def trace_end(ctx, state):
-    state["otel_span"].end()
-
-def trace_error(ctx, state, error):
-    state["otel_span"].set_status(Status(StatusCode.ERROR))
-    state["otel_span"].record_exception(error)
-    state["otel_span"].end()
-
-service.intercept_before(trace_start)
-service.intercept_after(trace_end)
-service.intercept_on_error(trace_error)
-
-Now every step shows up in Jaeger/Zipkin with proper parent-child relationships.
-
-🥊 Validation gate example
-
-def require_user_id(ctx, state):
-    if ctx.step_id == "persist_index":
-        if not state.get("user_id"):
-            raise ValueError(
-                f"user_id required for {ctx.step_id}"
-            )
-
-service.intercept_before(require_user_id)
-
-Now any attempt to persist without a user_id fails immediately with a clear error, not a cryptic database constraint violation 3 layers deep.
-
-⚡ Strict vs non-strict mode
-
-Non-strict (production): interceptor crashes are logged, pipeline continues. Your Datadog integration failing shouldn't break memory storage.
-
-Strict (testing): interceptor crashes stop the pipeline. You want to catch bugs in your observability code before production.
-
-🍓 Why after-interceptors run in reverse
-
-You register A, then B.
-
-before runs: A first, then B
-after runs: B first, then A
-
-Why? If A starts a database transaction and B starts a timer inside that transaction, you want the timer to stop before the transaction commits. LIFO order = clean unwinding.
-
-register(db_transaction) → register(timer)
-→ before: start_transaction → start_timer
-→ step executes
-→ after: stop_timer → commit_transaction
-
-Are you using interceptors in your pipelines? Share your thoughts :)
+Are you using interceptors in your pipelines?
 
 #ai #llm #observability #agents

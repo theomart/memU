@@ -2,70 +2,41 @@
 
 User says: "I've been coding in Python for 5 years, mostly Django. Last week I started learning Rust because my manager suggested it."
 
-Bad extraction: "User is an expert Python developer who loves Django and is mass excited about Rust."
+Bad extraction: "User is an expert Python developer who loves Django and is excited about Rust."
 
 Good extraction:
 - profile: "5 years Python experience"
 - profile: "Works with Django"
 - event: "Started learning Rust last week"
 - event: "Manager suggested learning Rust"
-- skill: "Python proficiency (5 years)"
 
 The difference? Structured memory types + strict extraction rules.
 
 👞 Non technical TLDR
 
-5 memory types, each with a specialized extractor:
+5 memory types, each with specialized extraction:
 
-profile → "User is 32 years old", "Works as a PM at a fintech startup"
-event → "Attended PyCon last month", "Got promoted in January"
-knowledge → "Knows that PostgreSQL supports JSON columns"
-behavior → "Usually codes in the morning", "Prefers dark mode"
-skill → "Fluent in Spanish", "Can write production Python"
+profile → stable traits ("Works as a PM", "Lives in Berlin")
+event → time-bound ("Attended PyCon last month", "Got promoted in January")
+knowledge → facts they know ("PostgreSQL supports JSON columns")
+behavior → patterns ("Codes in the morning", "Prefers dark mode")
+skill → capabilities ("Fluent in Spanish", "Can architect distributed systems")
 
-Each type has its own prompt. The profile extractor looks for stable traits. The event extractor looks for time-bound experiences. No mixing.
+By default, only profile and event run. You enable the others based on your use case.
 
 🔬 Technical TLDR
 
-The prompt structure that works:
+Each extractor has strict rules: "Extract only facts directly stated. No guesses, no suggestions."
 
-1. Task: "Extract profile memories from this conversation"
-2. Definition: "Profile memories are stable characteristics, demographics, preferences that don't change frequently"
-3. Rules: "Extract ONLY explicit statements. Do NOT infer. Do NOT extrapolate."
-4. Format: XML output with type attribute
-5. Examples:
+User says "I work at Google" → Extract "Works at Google"
+NOT "High income", "Lives in Bay Area", "Has good benefits"
 
-Input: "I moved to Berlin 3 years ago for work"
-Output:
-<memory_items>
-  <item type="profile">Lives in Berlin</item>
-  <item type="profile">Relocated for work</item>
-  <item type="event">Moved to Berlin 3 years ago</item>
-</memory_items>
+Those might be true, but they're inferences. Inferences become hallucinations at scale.
 
-6. Edge cases: "If timing is mentioned, also create an event memory"
-7. Quality check: "Each item must be independently understandable"
+The extractors run in parallel. 5 LLM calls, but latency of 1 because they're concurrent.
 
-Why XML over JSON? LLMs hallucinate JSON structure less with XML. Closing tags are easier to validate.
+One detail: the skill extractor is 8x more complex than others. Skills require structured output with principles, use cases, implementation patterns. "Knows Python" (knowledge) is simple. "Can architect distributed systems" (skill) needs depth.
 
-⚡ The parallel extraction trick
-
-Don't run 5 extractors sequentially. Run them in parallel.
-
-Conversation → 5 parallel LLM calls (profile, event, knowledge, behavior, skill) → merge results → dedupe
-
-Total latency: ~1 LLM call, not 5x.
-
-🍓 The critical instruction
-
-"Extract ONLY what is explicitly stated. Do NOT infer, assume, or extrapolate."
-
-User says: "I work at Google"
-Good: "Works at Google"
-Bad: "High income", "Lives in Bay Area", "Has good benefits"
-
-The bad ones might be true, but they're inferences. Inferences become hallucinations at scale.
-
-How do you handle memory extraction? Share your thoughts :)
+How do you handle memory extraction?
 
 #ai #llm #promptengineering #agents
