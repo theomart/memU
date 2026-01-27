@@ -1,0 +1,44 @@
+🔬 Real use case where agent frameworks bring value: observability without touching core code.
+
+You want to know why your memory pipeline is slow. Is it extraction? Embedding? Database writes?
+
+Without interceptors: add print statements everywhere, redeploy, check logs, remove them, redeploy again.
+
+With interceptors: register a timing function once, get metrics for every step, zero code changes.
+
+👞 Non technical TLDR
+
+Three hooks:
+
+before → runs before each step (start timer, validate input, check permissions)
+after → runs after each step completes (log duration, send metrics, notify)
+on_error → runs when step fails (log error context, send alert, attempt recovery)
+
+Memory pipeline has 6 steps: ingest, preprocess, extract, categorize, embed, persist.
+
+Register one timing interceptor. Get duration for all 6 automatically.
+
+ingest: 0.12s
+preprocess: 0.45s
+extract: 2.31s ← bottleneck identified
+categorize: 0.89s
+embed: 0.34s
+persist: 0.08s
+
+🔬 Technical TLDR
+
+after and on_error interceptors run in reverse registration order (LIFO).
+
+Why? If interceptor A starts a database transaction and B starts a timer inside it, you want B to stop before A commits. Clean unwinding.
+
+Two modes:
+- Non-strict (default): interceptor crashes are logged, pipeline continues. Observability shouldn't break storage.
+- Strict: crashes stop everything. Useful for testing.
+
+Registration returns a handle for cleanup. Useful for test teardown.
+
+This pattern enables OpenTelemetry tracing, Datadog metrics, validation gates, all without modifying core pipeline code.
+
+Are you using interceptors in your pipelines?
+
+#ai #llm #observability #agents

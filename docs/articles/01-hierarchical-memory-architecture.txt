@@ -1,0 +1,31 @@
+🧠 How do you make an AI agent actually REMEMBER things?
+
+Most agents dump everything into a vector database. User says "I love Italian food" in January, mentions "my daughter's birthday is in March" in February, asks "what should I cook?" in April.
+
+The agent searches, gets 50 random chunks, responds with generic pasta recipes. No mention of the daughter. No connection.
+
+The fix: 3-layer hierarchical memory.
+
+👞 Non technical TLDR
+
+Layer 1: raw conversations, documents, images. The actual source material.
+
+Layer 2: extracted facts. "User loves Italian food", "User has a daughter", "Birthday in March".
+
+Layer 3: organized summaries by category. "Family: daughter, birthday in March. Food: loves Italian."
+
+When user asks "what should I cook?", check Layer 3 first. March + daughter's birthday + Italian preference = "How about fresh pasta for your daughter's birthday?"
+
+🔬 Technical TLDR
+
+Layer 2 items are tagged by type: profile (stable traits) and event (time-bound) are enabled by default. Knowledge, behavior, skill available when needed.
+
+Layer 3 uses 10 default categories: personal_info, preferences, relationships, activities, goals, experiences, knowledge, opinions, habits, work_life.
+
+Many-to-many linking means one fact connects to multiple categories. "Daughter's birthday dinner" links to Family AND Traditions AND Food Preferences simultaneously.
+
+The real win: traceability. Every summary traces back to extracted facts, which trace back to original conversations. No hallucinated memories.
+
+What's your approach for agent memory?
+
+#ai #llm #agents #memory

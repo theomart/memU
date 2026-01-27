@@ -1,0 +1,42 @@
+🍄 How do you teach an LLM to extract memories WITHOUT hallucinating fake ones?
+
+User says: "I've been coding in Python for 5 years, mostly Django. Last week I started learning Rust because my manager suggested it."
+
+Bad extraction: "User is an expert Python developer who loves Django and is excited about Rust."
+
+Good extraction:
+- profile: "5 years Python experience"
+- profile: "Works with Django"
+- event: "Started learning Rust last week"
+- event: "Manager suggested learning Rust"
+
+The difference? Structured memory types + strict extraction rules.
+
+👞 Non technical TLDR
+
+5 memory types, each with specialized extraction:
+
+profile → stable traits ("Works as a PM", "Lives in Berlin")
+event → time-bound ("Attended PyCon last month", "Got promoted in January")
+knowledge → facts they know ("PostgreSQL supports JSON columns")
+behavior → patterns ("Codes in the morning", "Prefers dark mode")
+skill → capabilities ("Fluent in Spanish", "Can architect distributed systems")
+
+By default, only profile and event run. You enable the others based on your use case.
+
+🔬 Technical TLDR
+
+Each extractor has strict rules: "Extract only facts directly stated. No guesses, no suggestions."
+
+User says "I work at Google" → Extract "Works at Google"
+NOT "High income", "Lives in Bay Area", "Has good benefits"
+
+Those might be true, but they're inferences. Inferences become hallucinations at scale.
+
+The extractors run in parallel. 5 LLM calls, but latency of 1 because they're concurrent.
+
+One detail: the skill extractor is 8x more complex than others. Skills require structured output with principles, use cases, implementation patterns. "Knows Python" (knowledge) is simple. "Can architect distributed systems" (skill) needs depth.
+
+How do you handle memory extraction?
+
+#ai #llm #promptengineering #agents

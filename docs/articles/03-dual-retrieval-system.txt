@@ -1,0 +1,49 @@
+🎯 RAG is fast but dumb. LLM ranking is smart but slow. Why not both?
+
+User asks: "What did she say about the deadline?"
+
+RAG approach: embed query, search vectors, return top 5 chunks mentioning "deadline".
+
+Problem: who is "she"? Returns random deadline mentions from random people.
+
+LLM approach: look at conversation history, understand "she" = Sarah, rewrite query to "What did Sarah say about the project deadline?", search, rank results.
+
+Problem: 10-100x slower.
+
+Solution: build both, let the query decide.
+
+👞 Non technical TLDR
+
+Simple queries use RAG:
+- "What's the user's email?" → vector search → fast
+- "When is the meeting?" → vector search → fast
+
+Complex queries use LLM:
+- "What did she say about that?" → needs pronoun resolution → slower but accurate
+- "Summarize our discussions" → needs semantic ranking → slower but accurate
+
+A pre-retrieval decision step auto-detects which path to take.
+
+🔬 Technical TLDR
+
+Both methods search the same 3-tier hierarchy: Categories → Items → Resources.
+
+The key innovation: sufficiency checking after each tier.
+
+Query: "What's the user's job?"
+→ Search categories → Found "Work: Senior engineer at Stripe"
+→ Sufficient? YES → Stop here. Don't search 10,000 items.
+
+Query: "What exactly did user say about the auth bug?"
+→ Search categories → Found "Technical issues: auth bugs"
+→ Sufficient? NO, need specifics → Search items
+→ Found "OAuth token refresh failing silently on March 3"
+→ Sufficient? YES → Stop. Don't search raw conversations.
+
+Pre-retrieval also filters out queries that don't need memory at all. "Hello!" and "What's 2+2?" skip retrieval entirely.
+
+Latency depends heavily on your embedding model, LLM, and database backend. The sufficiency check is what makes both methods practical by stopping early.
+
+Which approach do you use in production?
+
+#ai #llm #rag #retrieval

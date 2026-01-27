@@ -1,0 +1,39 @@
+🦎 AI memory storage: which database for which stage?
+
+Day 1: Python dict. Zero setup. Restart = gone. Fine for prototyping.
+
+Day 30: 10,000 users. Dict is gone on every deploy. Need persistence.
+
+Day 100: Vector search is slow. Need native indexing.
+
+Here's the progression.
+
+👞 Non technical TLDR
+
+Stage 1 - Prototyping: In-memory dict. Zero config. Data disappears on restart.
+
+Stage 2 - MVP: SQLite file. One config change. Data persists. Single file, portable.
+
+Stage 3 - Production: PostgreSQL + pgvector. Real database. Concurrent users. Native vector search.
+
+All three use the same interface. Swap backends by changing config, not code.
+
+🔬 Technical TLDR
+
+The pgvector difference:
+
+Without it: store vectors as JSON, load into Python, compute cosine similarity, O(n) every query.
+
+With it: native vector column, HNSW index, query runs in database, O(log n) with SIMD acceleration.
+
+At 1M vectors, the gap is massive. Interactive vs unusable.
+
+Multi-tenant: define a scope model with user_id and org_id fields. Every table gets those columns automatically. Queries filter by scope. No manual WHERE clauses. No data leaks.
+
+Vector search respects scopes too. Search within one user's memories only.
+
+The architecture is extensible. Community PRs adding Oracle and MSSQL backends use the same pattern.
+
+What's your storage setup for agent memory?
+
+#ai #llm #postgres #pgvector #database
